@@ -22,6 +22,11 @@ package edu.nmsu.cs.webserver;
  **/
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -30,34 +35,52 @@ import java.text.DateFormat;
 import java.util.Date;
 import java.util.TimeZone;
 
-public class WebWorker implements Runnable
-{
+public class WebWorker implements Runnable{
 
 	private Socket socket;
 
 	/**
 	 * Constructor: must have a valid open socket
 	 **/
-	public WebWorker(Socket s)
-	{
+	public WebWorker(Socket s){
 		socket = s;
 	}
-
+	
 	/**
 	 * Worker thread starting point. Each worker handles just one HTTP request and then returns, which
 	 * destroys the thread. This method assumes that whoever created the worker created it with a
 	 * valid open socket object.
 	 **/
-	public void run()
-	{
+	public void run(){
 		System.err.println("Handling connection...");
 		try
 		{
 			InputStream is = socket.getInputStream();
 			OutputStream os = socket.getOutputStream();
-			readHTTPRequest(is);
-			writeHTTPHeader(os, "text/html");
-			writeContent(os);
+			//add things in the next 3 lines
+			String filename = readHTTPRequest(is);
+			File reqFile = new File(filename);
+			
+			if(reqFile.getName().toLowerCase().endsWith("html")){
+				writeHTTPHeader(os, reqFile, "text/html");
+				writeContent(os, reqFile, "text/html");
+			}
+			
+			if(reqFile.getName().toLowerCase().endsWith("png")){
+				writeHTTPHeader(os, reqFile, "image/png");
+				writeContent(os, reqFile, "image/png");
+			}
+			
+			if(reqFile.getName().toLowerCase().endsWith("gif")){
+				writeHTTPHeader(os, reqFile, "image/gif");
+				writeContent(os, reqFile, "image/gif");
+			}
+			
+			if(reqFile.getName().toLowerCase().endsWith("jpeg") || reqFile.getName().toLowerCase().endsWith("jpg")){
+				writeHTTPHeader(os, reqFile, "image/jpeg");
+				writeContent(os, reqFile, "image/jpeg");
+			}
+			
 			os.flush();
 			socket.close();
 		}
@@ -72,28 +95,37 @@ public class WebWorker implements Runnable
 	/**
 	 * Read the HTTP request header.
 	 **/
-	private void readHTTPRequest(InputStream is)
-	{
+	private String readHTTPRequest(InputStream is){
+		int h = 0;
 		String line;
+		String reqFileName = null;
 		BufferedReader r = new BufferedReader(new InputStreamReader(is));
-		while (true)
-		{
-			try
-			{
+		while (true){
+			try{
+				 
 				while (!r.ready())
 					Thread.sleep(1);
 				line = r.readLine();
+				
+				if(h == 0) {
+					reqFileName = line;
+					reqFileName = reqFileName.substring(5, reqFileName.length()-9);
+					System.out.println(reqFileName);
+				    h = 1;
+				}if(line.length() == 0) {
+					break;
+				}
+				
 				System.err.println("Request line: (" + line + ")");
 				if (line.length() == 0)
 					break;
-			}
-			catch (Exception e)
-			{
+			}catch (Exception e){
 				System.err.println("Request error: " + e);
-				break;
+				return "404";
 			}
+			
 		}
-		return;
+		return "www/" + reqFileName;
 	}
 
 	/**
@@ -104,23 +136,31 @@ public class WebWorker implements Runnable
 	 * @param contentType
 	 *          is the string MIME content type (e.g. "text/html")
 	 **/
-	private void writeHTTPHeader(OutputStream os, String contentType) throws Exception
+	private void writeHTTPHeader(OutputStream os, File reqFile, String contentType) throws Exception
 	{
+		int flag =0;
 		Date d = new Date();
 		DateFormat df = DateFormat.getDateTimeInstance();
 		df.setTimeZone(TimeZone.getTimeZone("GMT"));
-		os.write("HTTP/1.1 200 OK\n".getBytes());
-		os.write("Date: ".getBytes());
-		os.write((df.format(d)).getBytes());
-		os.write("\n".getBytes());
-		os.write("Server: Jon's very own server\n".getBytes());
-		// os.write("Last-Modified: Wed, 08 Jan 2003 23:11:55 GMT\n".getBytes());
-		// os.write("Content-Length: 438\n".getBytes());
-		os.write("Connection: close\n".getBytes());
-		os.write("Content-Type: ".getBytes());
-		os.write(contentType.getBytes());
-		os.write("\n\n".getBytes()); // HTTP header ends with 2 newlines
-		return;
+			if(!reqFile.exists()){
+				flag = 404;   
+			}//end catch
+
+			if(flag == 0){
+				os.write("HTTP/1.1 200 OK\n".getBytes());   
+			}else{
+				os.write("HTTP/1.1 404 Not Found\n".getBytes());
+			}
+
+			os.write("Date: ".getBytes());
+			os.write((df.format(d)).getBytes());
+			os.write("\n".getBytes());
+			os.write("Server: My very own server\n".getBytes());
+			os.write("Connection: close\n".getBytes());
+			os.write("Content-Type: ".getBytes());
+			os.write(contentType.getBytes());
+			os.write("\n\n".getBytes());
+			return;
 	}
 
 	/**
@@ -130,11 +170,56 @@ public class WebWorker implements Runnable
 	 * @param os
 	 *          is the OutputStream object to write to
 	 **/
-	private void writeContent(OutputStream os) throws Exception
-	{
-		os.write("<html><head></head><body>\n".getBytes());
-		os.write("<h3>My web server works!</h3>\n".getBytes());
-		os.write("</body></html>\n".getBytes());
-	}
+	private void writeContent(OutputStream os, File reqFile, String contentType)throws IOException{
 
-} // end class
+		Date d = new Date();
+		DateFormat dformat = DateFormat.getDateTimeInstance();
+	    dformat.setTimeZone(TimeZone.getTimeZone("GMT-7"));
+	    String fcont = "";
+	    String address = reqFile.toString();
+	    String date = dformat.format(d);
+	    
+	    if(contentType == "text/html") {
+	      try{
+	         FileReader fRead = new FileReader(reqFile);
+
+	         System.out.println(fRead);
+	         BufferedReader fBuff = new BufferedReader(fRead);
+	         int i = 0;
+	         String h = null;
+	         while((fcont = fBuff.readLine()) != null) {
+	        	 if(i==4) {
+	        	 h = fcont;
+	        	 }
+	              i++;
+	         }
+	         String targetClass = "<cs371date>";
+	         String replacement = date;
+	         String processed = h.replace(targetClass, replacement);
+	         //System.out.println(processed);
+	         String target1 = "<cs371server>";
+	         String server1 = "Calvin' server";
+	         String processed1 = processed.replace(target1, server1);
+	         os.write(processed1.getBytes());
+	           
+	      }catch(FileNotFoundException e) {
+	         System.err.println("File not found: " + address);
+	         os.write("HTTP/1.1 404 Not Found\n".getBytes());
+	      }
+	    }else {
+			FileInputStream f = new FileInputStream(reqFile);
+			int j = f.available();
+			//use array to store the data
+			byte[] B = new byte[j];
+			f.read(B);
+			f.close();
+			os.write(B);
+	    }
+	    
+
+	      
+	    
+	    
+	    
+	}  
+}
