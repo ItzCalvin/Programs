@@ -4,6 +4,7 @@ package edu.nmsu.cs.circles;
  * Implements a base abstract class for a circle. Everything except a intersects() method is
  * implemented here. Subclass must implement the intersects() method.
  **/
+//l1
 public abstract class Circle
 {
 	protected Point		center;
