@@ -1,4 +1,3 @@
-username: ItzCalvin
 # Programs
 Base code for program assignments in Software Development (C S 371). 
 
@@ -10,6 +9,3 @@ This assignment relies on the Coverage programs.
 
 ## Program 4
 This assignment relies on the Circles programs. 
-
-## Lab 1
-creating a repository by forking an existing one then added helloworld project and created an ant buildfiles for SimpleWebServer and Circles.
